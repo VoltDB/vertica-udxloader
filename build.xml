@@ -182,7 +182,7 @@ JAVA COMPILATION
         includes="com/vertica/sdk/BuildInfo.java"/>
     <invoke-javac17
         srcdir="${src.dir}"
-        includes="org/voltdb/vertica/VoltDBLoader.java"/>
+        includes="org/voltdb/vertica/VoltDBLoader.java,org/voltdb/vertica/VoltDBCall.java"/>
 </target>
 
 <target name="compile.tests" description="Compile all Java tests">

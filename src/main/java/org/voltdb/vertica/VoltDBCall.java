@@ -33,78 +33,27 @@ import com.vertica.sdk.ServerInterface;
 import com.vertica.sdk.SizedColumnTypes;
 import com.vertica.sdk.UdfException;
 import com.vertica.sdk.VerticaType;
+import java.io.IOException;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicLong;
 import org.voltdb.client.Client;
 import org.voltdb.client.ClientConfig;
 import org.voltdb.client.ClientFactory;
-import org.voltdb.client.ClientImpl;
 import org.voltdb.client.ClientResponse;
+import org.voltdb.client.ProcCallException;
 import org.voltdb.types.TimestampType;
-import org.voltdb.utils.BulkLoaderErrorHandler;
-import org.voltdb.utils.CSVBulkDataLoader;
-import org.voltdb.utils.CSVDataLoader;
-import org.voltdb.utils.CSVTupleDataLoader;
-import org.voltdb.utils.RowWithMetaData;
 
 /**
  *
  */
-public class VoltDBLoader extends ScalarFunctionFactory {
+public class VoltDBCall extends ScalarFunctionFactory {
 
     private Client m_client;
-    private String m_table;
     private String m_procedure = "";
-    private CSVDataLoader m_loader;
-    private int m_batch = 200;
-
     private String m_server = "localhost";
 
-    public static class VerticaBulkLoaderErrorHandler implements BulkLoaderErrorHandler {
-        private final ServerInterface m_si;
-        private final static AtomicLong m_failedCount = new AtomicLong(0);
-        public static long m_maxerrors = 100;
-        public static boolean m_stop = false;
-
-        public VerticaBulkLoaderErrorHandler(ServerInterface si) {
-            m_si = si;
-        }
-
-        @Override
-        public boolean handleError(RowWithMetaData metaData, ClientResponse response, String error) {
-            if (response != null) {
-                byte status = response.getStatus();
-                if (status != ClientResponse.SUCCESS) {
-                    m_si.log("Failed to Insert Row: %s, Response: %s, Error: %s", metaData.rawLine, response.getStatus(), response.getStatusString());
-                    long fc = m_failedCount.incrementAndGet();
-                    if ((m_maxerrors > 0 && fc > m_maxerrors)
-                            || (status != ClientResponse.USER_ABORT && status != ClientResponse.GRACEFUL_FAILURE)) {
-                        m_stop = true;
-                        return true;
-                    }
-                }
-            }
-            return false;
-        }
-
-        @Override
-        public boolean hasReachedErrorLimit() {
-            long fc = m_failedCount.get();
-            m_stop = m_maxerrors > 0 && fc > m_maxerrors;
-            return m_stop;
-        }
-
-    }
-
-    public class VoltLoader extends ScalarFunction {
-
-        private CSVDataLoader m_loader;
-
-        public VoltLoader(CSVDataLoader loader) {
-            m_loader = loader;
-        }
+    public class VoltCall extends ScalarFunction {
 
         @Override
         public void processBlock(ServerInterface si, BlockReader reader, BlockWriter writer) throws UdfException, DestroyInvocation {
@@ -115,10 +64,6 @@ public class VoltDBLoader extends ScalarFunctionFactory {
                     = new SimpleDateFormat(ODBC_DATE_FORMAT_STRING);
 
             do {
-                if (VerticaBulkLoaderErrorHandler.m_stop) {
-                    si.log("Reached max error limit for voltload: limit(%d)", VerticaBulkLoaderErrorHandler.m_maxerrors);
-                    break;
-                }
                 //Read values and pass them to bulkloader.
                 Object vals[] = new Object[reader.getNumCols()];
                 SizedColumnTypes typemd = reader.getTypeMetaData();
@@ -157,28 +102,26 @@ public class VoltDBLoader extends ScalarFunctionFactory {
                     } else {
                         si.log("Unknown data type please convert for loading or unsupported data type for voltDB loader: Index=%d", i);
                     }
-                    //si.log("Current: %d, Value: %s, Type: %s", i, vals[i], vals[i] == null ? "null" : vals[i].getClass().getCanonicalName());
+                    si.log("Current: %d, Value: %s, Type: %s", i, vals[i], vals[i] == null ? "null" : vals[i].getClass().getCanonicalName());
                 }
                 try {
-                    m_loader.insertRow(new RowWithMetaData(sb.toString(), cnt++), vals);
-                    writer.setLong(0);
-                } catch (InterruptedException ex) {
-                    si.log("Bulkloader interrupted: %s", ex);
+                    //Call procedure synchronously
+                    writer.setLong((m_client.callProcedure(m_procedure, vals)).getStatus() == ClientResponse.SUCCESS ? 0 : 1);
+                } catch (IOException ex) {
                     writer.setLong(1);
-                    break;
+                    si.log("Failed to call procedure %s, Error: %s", m_procedure, ex);
+                } catch (ProcCallException ex) {
+                    writer.setLong(1);
+                    si.log("Failed to call procedure %s, Error: %s", m_procedure, ex);
                 }
             } while (reader.next());
 
             try {
-                if (m_client != null) {
-                    m_client.drain();
-                }
-                //expose flush from loader in CSVLoader to call here.
+                m_client.drain();
             } catch (Exception ex) {
-                si.log("Failed to flush voltdb bulkloader: %s", ex);
+                si.log("Failed to flush voltdb bulkloader", ex);
             }
             //Report
-            si.log("voltload failed to load %d rows, see UDx logs for row details.", VerticaBulkLoaderErrorHandler.m_failedCount.intValue());
         }
 
     }
@@ -197,38 +140,22 @@ public class VoltDBLoader extends ScalarFunctionFactory {
 
             m_server = argReader.getString("voltservers");
             try {
-                m_table = argReader.getString("volttable");
-            } catch (UdfException udfex) {
-                ;
-            }
-            try {
                 m_procedure = argReader.getString("procedure");
             } catch (UdfException udfex) {
                 ;
             }
-            try {
-                VerticaBulkLoaderErrorHandler.m_maxerrors = argReader.getLong("maxerrors");
-            } catch (UdfException udfex) {
-                VerticaBulkLoaderErrorHandler.m_maxerrors = 100;
-            }
 
-            si.log("Server: %s, Max errors: %d", m_server, VerticaBulkLoaderErrorHandler.m_maxerrors);
+            si.log("Server: %s, Procedure: %s", m_server, m_procedure);
             connect(m_server);
-            if (m_client != null) {
-                if (m_procedure != null && !m_procedure.trim().isEmpty()) {
-                    si.log("Procedure: %s", m_procedure);
-                    m_loader = new CSVTupleDataLoader((ClientImpl) m_client, m_procedure, new VerticaBulkLoaderErrorHandler(si));
-                } else {
-                    si.log("Table: %s", m_table);
-                    m_loader = new CSVBulkDataLoader((ClientImpl) m_client, m_table, m_batch, new VerticaBulkLoaderErrorHandler(si));
-                }
+            if (m_client == null) {
+                throw new UdfException(0, "Failed to connect to server: " + m_server);
             }
         } catch (Exception ex) {
             si.log("Failed to load data in voltdb: %s", ex.toString());
             throw new UdfException(0, "Failed to load data in voltdb: " + ex.toString());
         }
 
-        return new VoltLoader(m_loader);
+        return new VoltCall();
     }
 
     /**
@@ -302,12 +229,8 @@ public class VoltDBLoader extends ScalarFunctionFactory {
     public void getParameterType(ServerInterface si,
                                  SizedColumnTypes parameterTypes)
     {
-        //si.log("Param types: %d", parameterTypes.getColumnCount());
         parameterTypes.addVarchar(1024, "voltservers");
-        parameterTypes.addVarchar(512, "volttable");
         parameterTypes.addVarchar(1024, "procedure");
-        parameterTypes.addInt("maxerrors");
-        //si.log("Param types: %d", parameterTypes.getColumnCount());
     }
 
 }

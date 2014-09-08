@@ -26,7 +26,7 @@
  * VoltDB functions for vertica
  * 
  * Current functions:
- * voltload() - allows you to load data into VoltDB using SQL
+ * voltdbload() - allows you to load data into VoltDB using SQL
  *
  */
 
@@ -38,7 +38,7 @@ SELECT SET_CONFIG_PARAMETER('JavaBinaryForUDx','/usr/bin/java');
 
 CREATE LIBRARY VoltDBFunctions AS :libSfile LANGUAGE 'JAVA';
 -- Step 2: Create Functions
-CREATE FUNCTION voltload AS LANGUAGE 'Java' NAME 'org.voltdb.vertica.VoltDBLoader' LIBRARY VoltDBFunctions ;
+CREATE FUNCTION voltdbload AS LANGUAGE 'Java' NAME 'org.voltdb.vertica.VoltDBLoader' LIBRARY VoltDBFunctions ;
 
 -- Create table with all types except binary
 CREATE TABLE T (
@@ -75,10 +75,10 @@ true,VOLT,VOLTDB,VOLTDBINC,10/10/2014,Wed Sep 3 05:45:59 EDT 2014,Wed Sep 3 05:4
 SELECT * from T;
 
 -- Invoke using table option
-SELECT c1, c2, c3, voltload(c1, c2, c3, c4, c5, c6, c7, c9, DAY(c10), c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22::float, c23::float, c24::float,
+SELECT c1, c2, c3, voltdbload(c1, c2, c3, c4, c5, c6, c7, c9, DAY(c10), c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22::float, c23::float, c24::float,
                       c25::float using parameters maxerrors=200, voltservers='localhost', volttable='T') FROM T;
 -- Invoke using procedure option
-SELECT c1, c2, c3, voltload(c1, c2, c3, c4, c5, c6, c7, c9, DAY(c10), c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22::float, c23::float, c24::float,
+SELECT c1, c2, c3, voltdbload(c1, c2, c3, c4, c5, c6, c7, c9, DAY(c10), c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22::float, c23::float, c24::float,
                       c25::float using parameters maxerrors=200, voltservers='localhost', procedure='T.insert') FROM T;
 
 --
