@@ -38,4 +38,5 @@ SELECT SET_CONFIG_PARAMETER('JavaBinaryForUDx','/usr/bin/java');
 
 CREATE LIBRARY VoltDBFunctions AS :libSfile LANGUAGE 'JAVA';
 -- Step 2: Create Functions
-CREATE FUNCTION voltload AS LANGUAGE 'Java' NAME 'org.voltdb.vertica.VoltDBLoader' LIBRARY VoltDBFunctions ;
+CREATE FUNCTION voltdbload AS LANGUAGE 'Java' NAME 'org.voltdb.vertica.VoltDBLoader' LIBRARY VoltDBFunctions ;
+CREATE FUNCTION voltdbcall AS LANGUAGE 'Java' NAME 'org.voltdb.vertica.VoltDBCall' LIBRARY VoltDBFunctions ;
