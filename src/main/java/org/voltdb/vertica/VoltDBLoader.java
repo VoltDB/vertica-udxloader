@@ -170,10 +170,12 @@ public class VoltDBLoader extends ScalarFunctionFactory {
             } while (reader.next());
 
             try {
+                if (m_loader != null) {
+                   m_loader.flush();
+                }
                 if (m_client != null) {
                     m_client.drain();
                 }
-                //expose flush from loader in CSVLoader to call here.
             } catch (Exception ex) {
                 si.log("Failed to flush voltdb bulkloader: %s", ex);
             }
