@@ -24,7 +24,7 @@
 /*
  *
  * VoltDB functions for vertica
- * 
+ *
  * Current functions:
  * voltdbload() - allows you to load data into VoltDB using SQL
  *
@@ -33,8 +33,8 @@
 
 SELECT SET_CONFIG_PARAMETER('JavaBinaryForUDx','/usr/bin/java');
 
--- Step 1: Create LIBRARY 
-\set libSfile '\''`pwd`'../../../voltdb-udxload.jar\''
+-- Step 1: Create LIBRARY
+\set libSfile '\''`pwd`'/../../../voltdb-udxload.jar\''
 
 CREATE LIBRARY VoltDBFunctions AS :libSfile LANGUAGE 'JAVA';
 -- Step 2: Create Functions

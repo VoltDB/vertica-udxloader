@@ -8,6 +8,10 @@ vertica-udxloader
 
 3. specify env variables VERTICA and VOLTDB to point to base directories eg. /opt/vertica and /opt/voltdb
 
-4. Run ant which will build the jar. install the library as specified in install.sql and run UDx functions.
+4. Run ant which will build the jar.
 
-5. See sample in test.sql
+5. Set VoltDB JDBC drivers for Vertica. 
+
+6. Install the library as specified in install.sql and run UDx functions.
+
+7. See sample in test.sql
