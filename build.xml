@@ -179,7 +179,7 @@ JAVA COMPILATION
 
     <invoke-javac17
         srcdir="${vertica.dir}/sdk"
-        includes="com/vertica/sdk/BuildInfo.java"/>
+        includes="BuildInfo.java"/>
     <invoke-javac17
         srcdir="${src.dir}"
         includes="org/voltdb/vertica/VoltDBLoader.java,org/voltdb/vertica/VoltDBCall.java"/>
